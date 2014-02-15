@@ -1,0 +1,30 @@
+    //VulBegin: SQL Injection
+    /*Original Code:
+    $query = "INSERT INTO article (title,content,author_id) VALUES ('$title','$content','$authorid')"; 
+    if (!mysqli_query($con,$query))
+    {
+        die('Error: ' . mysqli_error($con));
+    }
+    */
+    //Patch Code:
+    //VulEnd
+
+
+
+        //VulBegin: SQL Injection
+        /*Original Code:
+		$query = "INSERT INTO users (user_name,email,password,is_admin) VALUES ('$username','$email','$password',false)"; 
+		if (!mysqli_query($con,$query))
+  		{
+  			die('Error: ' . mysqli_error($con));
+        }
+         */
+        //Patch Code:
+		$stmt = $con->prepare("INSERT INTO users (user_name,email,password,is_admin) VALUES (?,?,?,false)"); 
+        $stmt->bind_param('sss', $username, $email, $password);
+        echo $stmt->execute();
+		if ($stmt->execute() != 1)
+  		{
+  			die('Error: ' . mysqli_error($con));
+        }
+        //VulEnd
