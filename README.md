@@ -1,96 +1,389 @@
-"Euler" math library(C++)
+SecureCMS
 ========
+Generally, I found two classes of exploits in *SecureCMS*.
 
-Euler is a c++ math library created with careful consideration of running speed which you can hire to hack all kinds of math problems and do a lot of cool calculation.
-
-Euler contains an independent big integer library which can be used to operate on really big integers, with all the basic integer opeartions(+-\*/,int,long,unsigned) and some advanced algorithms provided(greatest common divisor).
-Why I created "Euler"?
+SQL Injection
 --------
-Euler was first created when I was hacking a series of computational problems from 
-[projecteuler](http://projecteuler.net/). There were a lot of repeated program routines among those questions which I thought could be combined into one integral library. As a result, the work started!
+In order to sanitize input data and prevent SQL Injection, I patched all the previous SQL execution sequences into codes using functions **prepare()** and **bind_param()**. 
 
-When I was writing "euler.cc" and "euler.h", some big integer problems came up me which bothered me a lot. Though I have used Java's big integer library, which is nicely designed. There is one reason that keep me in C++ stubbornly, that is its speed!
+Then, I learned and made some changes from a piece of code online, which can detect SQL injections(*The reason I did not implement one all by myself since intrusion detection has so many edge cases, one can't consider them all, especiall for a newbie like me*).
 
-The computational problems from euler sometimes take your computer more than 10 minutes of running time, and maybe you need to run the program for several times in order to debug. I will save you much more time if I can use C++ instead of Java or other languages!
+The code is in *"checkInput.php"*. It takes all the arrays from *$_GET*, *$_POST*, *$_COOKIE* and check the values recursively. Then, for each value, *testHelper()* function delievers the value to *test()* function, then by checking all the rules of (*SQL Injection violation*)in *test()* function, *test()* returns a value which indicates how many rules has been violated by the value. Finally, if the *rule-voilated-times* is bigger than some limit, that means there's probably SQL *Injection* *testHelper()*, then it will write down the message together with related value into apache2 log.
 
-Why another big integer library
---------
-At first, I tried some big integer libraries. However, none of them could meet my need.
-They were either too simple to support some useful functions or too buggy to use. 
+In order to further monitor the behavior of the attacker, I seperated a database named "SecureCMSCorrupt" from "SecureCMS" for direct excution of user input SQL sequence. Thus, everytime, there's a SQL execution, the program will execute both sanitized SQL and malicious SQL.
 
-If you search "Big Integer Library" on google, there's [one library]((https://mattmccutchen.net/bigint/)) ranked #1 on the page which is just built by C++. You may think that this is wise choice since that is "chosen" by google, right? 
-
-I'll tell you, no! It's buggy! That library does not even support calculation like:
-```a = a * a; ``` or ```a = a/a``` 
-Why? If your library wants to support "self-caculation" like this, you may need rewrite the code like this:
-```C++ 
-    if (A.isZero() || B.isZero()){
-        setZero();
-        return;
-    }else if (A.isOne()){
-        if (this != &B) operator = (B); //How about f1 *= f2 and f2 == BigIntBase(1)
-        return;
-    } else if (B.isOne()) {
-        if (this != &A) operator = (A);
-        return;
-    }
-```
-You may think we can still use the library "chosen" by google and write our own code like:
-```C++ 
-   BigInteger b = a, c = a * b;
-```
-How inconvinient this way is! And human do need code like ```a=a*a;```
-Also, that library does not work at all when I multiply two very long integers(19695 digits). Buggy!
-The last but not least thing I want to tell you about that library is that it is too slow, at least when compared to my version of implementation.
-
-After so many frustrations and disappointments from all those libraries, I decided to implement my own!
-
-As a result, Euler has two parts now, one for normal math problems, such as calculating the sum of all the factors from a given number, the other is for big integer problems, such as calculating the greatest common divisor(GCD) of ```123412341234123412341234123412341234```  and ```12312312312414123123412312312312312412314123```.
-
-
-How to use `Big Integer Library`
-============
-Clone Euler to your project folder: `git clone https://github.com/hophacker/euler`
+Cross-Site Script(XSS)
+---------
+To prevent XSS attack, I integrated input checktng with *OWASP encoding project*. Then I patched all the code which is vulnerable to XSS attack in *SecureCMS* by calling *checkXSS()* function in *"checkInput.php"*. That function will return sanitized input by doing work like encoding special html characters, striping suspicious tags, etc.
  
-Make it, and all the objects and targets will go into folder "lib".
-
-Open the file "testBigIntBase.cc", you will find lots of examples about how to use the BigInteger library.
-
-Feel lazy to check the code? Here are some cool examples:
-
-**(1)Get GCD of the two numbers I give above:**
-
-```C++
-    BigIntBase e("123412341234123412341234123412341234");
-    BigIntBase f("12312312312414123123412312312312312412314123");
-    BigIntBase g = e.gcd(f);
-    cout << g << endl
+Vulnerable code I have patched
+---------
+(1)
+```php
+//logBegin
+checkSQLInput($article_id);
+//logEnd
+//logBegin
+checkSQLInput($comment_id);
+//logEnd
+//logBegin
+$title = checkXSS($title);
+$content = checkXSS($content);
+//logEnd
+//logBegin
+$name = checkXSS($name);
+$welcome = checkXSS($welcome);
+//logEnd
+//logBegin
+checkHTMLInput($name);
+checkHTMLInput($welcome);
+//logEnd
+//VulBegin: SQL Injection
+/*Original Code:
+  $query = "INSERT INTO article (title,content,author_id) VALUES ('$title','$content','$authorid')"; 
+  if (!mysqli_query($con,$query))
+  {
+  die('Error: ' . mysqli_error($con));
+  }
+ */
+//Patch Code:
+$stmt = $con->prepare("INSERT INTO article (title,content,author_id) VALUES (?,?,?)");
+$stmt->bind_param('sss', $title, $content, $author_id);
+if ($stmt->execute() != 1) 
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
 ```
+(2)
+```php
+//VulBegin: SQL Injection
+/*Original Code:
+  $query = "INSERT INTO comments (user_id,article_id,comment) VALUES ('$authorid','$articleid','$comment')"; 
+  echo $query;
 
-You will get the answer is `7`
+  if (!mysqli_query($con,$query))
+  {
+  die('Error: ' . mysqli_error($con));
+  }
+ */
+//Patch Code:
+$query = "INSERT INTO comments (user_id,article_id,comment) VALUES ('$authorid','$articleid','$comment')"; 
+if (!mysqli_query($con,$query))
+{
+    die('Error: ' . mysqli_error($con));
+}
 
-**(2)Get k-permutations of n where k=60 and n=123**
-
-`BigIntBase a = BigIntBase::permutation(123, 60);`
-
-`cout << a << endl`
-
-Don't be hesitate, try it now and you will get the answer `6126426623277607558830892659050738012468992831594946549976844836830737333775846630022365422877182368153600000000000000`
-
-**(3)Get the power of base=1234 to exponent=40**
-
-```C++
-    BigIntBase a("1234"), b = a.pow(40);
-    cout << b << endl;
+mysqli_select_db("SecureCMS", $con);
+$stmt = $con->prepare("INSERT INTO comments (user_id,article_id,comment) VALUES (?,?,?)");
+$stmt->bind_param('sss', $authorid, $articleid, $comment);
+if ($stmt->execute() != 1) 
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
 ```
+(3)
+```php
+//VulBegin: XSS
+/*Original Code:
+  echo "<b><a href='index.php?page=view_article&article_id=" . $row['aid'] . "'>" . $row['title'] . "</a></b> by " . $row['user_name'] . "<br/><br/>";
+ */
+//Patch Code:
+echo "<b><a href='index.php?page=view_article&article_id=" . checkXSS($row['aid']) . "'>" . checkXSS($row['title']) . "</a></b> by " . checkXSS($row['user_name']) . "<br/><br/>";
+//VulEnd
+```
+(4)
+```php
+//VulBegin: SQL Injection
+/*Original Code:
+  mysqli_query($con,"DELETE FROM article WHERE id='$articleid'");
+ */
+//Patch Code:
+$con_corrupt = conC();
+$con = conN();
+mysqli_query($con_corrupt, "DELETE FROM article WHERE id='$articleid'");
 
-The answer is:`4493723926702212177102715930895505163093661512740028111091444935676043681712474862933310710677287635716764659044658735742976`
+$stmt = $con->prepare("DELETE FROM article WHERE id=?");
+$stmt->bind_param('s', $articleid);
+if ($stmt->execute() != 1) 
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
+//VulBegin: SQL Injection
+/*Original Code:
+  mysqli_query($con,"DELETE FROM comments WHERE id='$commentid'");
+ */
+//Patch Code:
+$con_corrupt = conC();
+$con = conN();
+mysqli_query($con_corrupt, "DELETE FROM comments WHERE id='$commentid'");
+$stmt = $con->prepare("DELETE FROM comments WHERE id=?");
+$stmt->bind_param('s', $commentid);
+if ($stmt->execute() != 1) 
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
+```
+(5)
+```php
+//VulBegin: SQL Injection
+/*Original Code:
+  $query = "UPDATE article SET title='$title',content='$content' WHERE id='$articleid'"; 
+  if (!mysqli_query($con,$query))
+  {
+  die('Error: ' . mysqli_error($con));
+  }
+ */
+//Patch Code:
+$con_corrupt = conC();
+$con = conN();
+$query = "UPDATE article SET title='$title',content='$content' WHERE id='$articleid'"; 
+if (!mysqli_query($con_corrupt,$query))
+{
+    die('Error: ' . mysqli_error($con_corrupt));
+}
 
+$stmt = $con->prepare( "UPDATE article SET title=?,content=? WHERE id=?");
+$stmt->bind_param('sss', $title, $content, $articleid);
+if ($stmt->execute() != 1) 
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
+```
+(6)
+```php
+//VulBegin: 
+//Patch Code: Cross Site Scripting (XSS)
+$title = htmlspecialchars($title, ENT_QUOTES);
+$content = htmlspecialchars($content, ENT_QUOTES);
+//logBegin
+$title = checkXSS($title);
+$content = checkXSS($content);
+//logEnd
+//VulEnd
+//VulBegin: SQL Injection
+/*Original Code:
+  $query = "INSERT INTO settings (site_name,welcome) VALUES ('$name','$welcome')";
+  mysqli_query($con,$query);
+ */
+//Patch Code:
+$con_corrupt = conC();
+$con = conN();
+$query = "INSERT INTO settings (site_name,welcome) VALUES ('$name','$welcome')";
+mysqli_query($con_corrupt,$query);
+$stmt = $con->prepare( "INSERT INTO settings (site_name,welcome) VALUES (?,?)");
+$stmt->bind_param('ss', $name, $welcome);
+if ($stmt->execute() != 1) 
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
+```
+(7)
+```php
+//VulBegin: 
+//Patch Code: Cross Site Scripting (XSS)
+$name = htmlspecialchars($name, ENT_QUOTES);
+$welcome = htmlspecialchars($welcome, ENT_QUOTES);
+//VulEnd
+```
+(8)
+```php
+//VulBegin: SQL Injection
+/*Original Code:
+  $q = "SELECT * FROM users WHERE user_name='$username' AND password='$password'";
+  $result = mysqli_query($con,$q);
+  if($result == NULL){
+//No results found! Must be wrong user
+echo "Error: Wrong username/password.";	
+}
+ */
+//Patch Code:
+$con_corrupt = conC();
+$q = "SELECT * FROM users WHERE user_name='$username' AND password='$password'";
+$result = mysqli_query($con_corrupt ,$q);
+if($result == NULL){
+    //No results found! Must be wrong user
+    echo "Error: Wrong username/password.";	
+}
 
+$con = conN();
+$stmt = $con->prepare("SELECT * FROM users WHERE user_name=? AND password=?");
+$stmt->bind_param('ss', $username, $password);
+if ($stmt->execute() != 1) 
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
+```
+(9)
+```php
+//VulBegin: XSS
+/*Original Code:
+  echo "Welcome, " . $_SESSION['username'];	
+ */
+//Patch Code:
+echo "Welcome, " . checkXSS($_SESSION['username']);	
+//VulEnd
+```
+(10)
+```php
+//VulBegin: SQL Injection
+/*Original Code:
+  $query = "INSERT INTO users (user_name,email,password,is_admin) VALUES ('$username','$email','$password',false)"; 
+  if (!mysqli_query($con,$query))
+  {
+  die('Error: ' . mysqli_error($con));
+  }
+ */
+//Patch Code:
+$con = conN();
+$query = "INSERT INTO users (user_name,email,password,is_admin) VALUES ('$username','$email','$password',false)"; 
+if (!mysqli_query($con,$query))
+{
+    die('Error: ' . mysqli_error($con));
+}
 
-How to use `Normal math functions`
-------------
-Actually, I think it's trivial to show these examples here. You can just check the file *euler.cc* and you will get the right way by looking at the function names and my comments.
+$con = conC();
+$stmt = $con->prepare("INSERT INTO users (user_name,email,password,is_admin) VALUES (?,?,?,false)"); 
+$stmt->bind_param('sss', $username, $email, $password);
+if ($stmt->execute() != 1)
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
+```
+(11)
+```php
+//VulBegin: SQL Injection
+/*Original Code:
+  $result = mysqli_query($con,"SELECT title,user_name,article.id as aid FROM article,users WHERE title LIKE '%$term%' AND article.author_id=users.id");
+ */
+//Patch Code:
+$con_corrupt = conC();
+$con = conN();
+$result = mysqli_query($con_corrupt,"SELECT title,user_name,article.id as aid FROM article,users WHERE title LIKE '%$term%' AND article.author_id=users.id");
+$stmt = $con->prepare("SELECT title,user_name,article.id as aid FROM article,users WHERE title LIKE '%?%' AND article.author_id=users.id");
+$stmt->bind_param('s', $term);
+if ($stmt->execute() != 1) 
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
+```
+(12)
+```php
+//VulBegin: SQL Injection
+/*Original Code:
+  echo "<b><a href='index.php?page=view_article&article_id=" . $row['aid'] . "'>" . $row['title'] . "</a></b> by " . $row['user_name']. "<br/><br/>";
+ */
+//Patch Code:
+echo "<b><a href='index.php?page=view_article&article_id=" . checkXSS($row['aid']) . "'>" . checkXSS($row['title']) . "</a></b> by " . checkXSS($row['user_name']). "<br/><br/>";
+//VulEnd
+```
+(13)
+```php
+//VulBegin: SQL Injection
+/*Original Code:
+  $result = mysqli_query($con,"SELECT * FROM article,users WHERE article.author_id=users.id AND article.id='$articleid'");
+ */
+//Patch Code:
+$con_corrupt = conC();
+$con = conN();
+$result = mysqli_query($con_corrupt,"SELECT * FROM article,users WHERE article.author_id=users.id AND article.id='$articleid'");
 
+$stmt = $con->prepare("SELECT * FROM article,users WHERE article.author_id=users.id AND article.id='?'");
+$stmt->bind_param('s', $articleid);
+if ($stmt->execute() != 1) 
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
+```
+(14)
+```php
+//VulBegin: XSS Injection
+/*Original Code:
+  while($row = mysqli_fetch_array($result)){
+  echo "<b>" . $row['title'] . "</b> by " . $row['user_name'] . "<br/><br/>";
+  echo nl2br($row['content']);
+  echo "<br/><br/>";
+  if($_SESSION['is_admin'] == 1){
+  echo "<a href='index.php?page=edit_article&article_id=" . $articleid . "'>Edit</a> ";	
+  echo "<a href='index.php?page=delete_article&article_id=" . $articleid . "'>Delete</a>";	
 
+  }
+  }	
+ */
+//Patch Code:
+while($row = mysqli_fetch_array($result)){
+    echo "<b>" . checkXSS($row['title']) . "</b> by " . checkXSS($row['user_name']) . "<br/><br/>";
+    echo nl2br(checkXSS($row['content']));
+    echo "<br/><br/>";
+    if($_SESSION['is_admin'] == 1){
+        echo "<a href='index.php?page=edit_article&article_id=" . checkXSS($articleid) . "'>Edit</a> ";	
+        echo "<a href='index.php?page=delete_article&article_id=" . checkXSS($articleid) . "'>Delete</a>";	
+    }
+}	
+//VulEnd
+```
+(15)
+```php
+//VulBegin: SQL Injection
+/*Original Code:
+  $result = mysqli_query($con,"SELECT comments.id as cid,comment,user_name,time FROM comments,users WHERE comments.user_id=users.id AND comments.article_id='$articleid'");
+ */
+//Patch Code:
+$con_corrupt = conC();
+$con = conN();
+$result = mysqli_query($con_corrupt,"SELECT comments.id as cid,comment,user_name,time FROM comments,users WHERE comments.user_id=users.id AND comments.article_id='$articleid'");
+$stmt = $con->prepare("SELECT comments.id as cid,comment,user_name,time FROM comments,users WHERE comments.user_id=users.id AND comments.article_id='?'");
+$stmt->bind_param('s',  $articleid);
+if ($stmt->execute() != 1) 
+{
+    die('Error: ' . mysqli_error($con));
+}
+//VulEnd
+```
+(16)
+```php
+//VulBegin: XSS
+/*Original Code:
+  while($row = mysqli_fetch_array($result)){
+  echo $row['user_name'] . " said:<br/>" . nl2br($row['comment']);
+//If an admin is logged in, give them the option to delete it
+if($_SESSION['is_admin'] == 1){
+echo "<a href='index.php?page=delete_comment&comment_id=" . $row['cid'] . "'>Delete</a>";	
+}
+echo "<br/><br/>";
+}	
+ */
+//Patch Code:
+while($row = mysqli_fetch_array($result)){
+    echo checkXSS($row['user_name']) . " said:<br/>" . checkXSS(nl2br($row['comment']));
+    //If an admin is logged in, give them the option to delete it
+    if($_SESSION['is_admin'] == 1){
+        echo "<a href='index.php?page=delete_comment&comment_id=" . checkXSS($row['cid']) . "'>Delete</a>";	
+    }
+    echo "<br/><br/>";
+}	
+//VulEnd
+```
+(17)
+```php
+//VulBegin: XSS
+/*Original Code:
+  while($row = mysqli_fetch_array($result)){
+  echo "<tr><td>" . $row['id'] . "</td><td>" . $row['user_name'] . "</td><td>" . $row['email'] . "</td></tr>";
+  }	
+ */
+//Patch Code:
+while($row = mysqli_fetch_array($result)){
+    echo "<tr><td>" . checkXSS($row['id']) . "</td><td>" . checkXSS($row['user_name']) . "</td><td>" . checkXSS($row['email']) . "</td></tr>";
+}	
+//VulEnd
 

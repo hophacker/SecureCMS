@@ -1,3 +1,4 @@
+<?php include_once("checkInput.php"); ?>
 <?
 //Verify that the admin is editing the settings
 verifyAdmin();
@@ -6,8 +7,8 @@ if(isset($_POST['name'])){
     $name = addslashes($_POST['name']);
     $welcome = addslashes($_POST['welcome']);
     //logBegin
-    checkSQLInput($name);
-    checkSQLInput($welcome);
+    $name = checkXSS($name);
+    $welcome = checkXSS($welcome);
     //logEnd
     //Delete current settings
     $query = "DELETE * FROM settings"; 
@@ -19,6 +20,10 @@ if(isset($_POST['name'])){
     mysqli_query($con,$query);
     */
     //Patch Code:
+    $con_corrupt = conC();
+    $con = conN();
+    $query = "INSERT INTO settings (site_name,welcome) VALUES ('$name','$welcome')";
+    mysqli_query($con_corrupt,$query);
     $stmt = $con->prepare( "INSERT INTO settings (site_name,welcome) VALUES (?,?)");
     $stmt->bind_param('ss', $name, $welcome);
     if ($stmt->execute() != 1) 

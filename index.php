@@ -1,3 +1,4 @@
+<?php include_once("checkInput.php"); ?>
 <? include "header.php" ?>
     <?
 //Display the welcome message
@@ -7,7 +8,7 @@ echo nl2br($welcome);
 else{
 //Get the page they requested and include it
 $page = $_GET['page'] . ".php";
-include($page);	
+include_once($page);	
 }
 ?>
     <? include "footer.php" ?>

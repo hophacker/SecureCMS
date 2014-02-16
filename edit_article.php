@@ -1,3 +1,4 @@
+<?php include_once("checkInput.php"); ?>
 <?
 //Make sure it is an admin editing
 verifyAdmin();
@@ -6,11 +7,6 @@ if(isset($_POST['title'])){
     $title = addslashes($_POST['title']);
     $content = addslashes($_POST['content']);
     $articleid = $_GET['article_id'];
-    //logBegin
-    checkSQLInput($title);
-    checkSQLInput($content);
-    checkSQLInput($articleid);
-    //logEnd
     //Update in database
     //VulBegin: SQL Injection
     /*Original Code:
@@ -21,6 +17,14 @@ if(isset($_POST['title'])){
     }
      */
     //Patch Code:
+    $con_corrupt = conC();
+    $con = conN();
+    $query = "UPDATE article SET title='$title',content='$content' WHERE id='$articleid'"; 
+    if (!mysqli_query($con_corrupt,$query))
+    {
+        die('Error: ' . mysqli_error($con_corrupt));
+    }
+
     $stmt = $con->prepare( "UPDATE article SET title=?,content=? WHERE id=?");
     $stmt->bind_param('sss', $title, $content, $articleid);
     if ($stmt->execute() != 1) 
@@ -46,8 +50,8 @@ else{
     $title = htmlspecialchars($title, ENT_QUOTES);
     $content = htmlspecialchars($content, ENT_QUOTES);
     //logBegin
-    checkHTMLInput($title);
-    checkHTMLInput($content);
+    $title = checkXSS($title);
+    $content = checkXSS($content);
     //logEnd
     //VulEnd
 ?>

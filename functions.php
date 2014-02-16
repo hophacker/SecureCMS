@@ -1,3 +1,4 @@
+<?php include_once("checkInput.php"); ?>
 <?
 //Verifies that the logged in user is an admin
 function verifyAdmin(){

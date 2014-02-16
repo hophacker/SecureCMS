@@ -1,18 +1,9 @@
+<?php include_once("checkInput.php"); ?>
 <?
 session_start();
 include ("functions.php");
 //Change this to your DB settings
-$host = "localhost";
-$user = "root";
-$pwd = "1";
-$db = "SecureCMS";
-$con=mysqli_connect($host,$user,$pwd,$db); 
-// Check connection
-if (!$con)
-{
-    die('Could not connect: ' . mysqli_error());
-}
-mysqli_select_db("DATABASE NAME ALSO GOES HERE");
+//mysqli_select_db($db, $con);
 
 ?>
 
@@ -22,6 +13,7 @@ mysqli_select_db("DATABASE NAME ALSO GOES HERE");
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <?
+$con = conN();
 //Get the page titles and welcome page
 $result = mysqli_query($con,"SELECT * FROM settings");
 $site_name = "";

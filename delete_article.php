@@ -1,3 +1,4 @@
+<?php include_once("checkInput.php"); ?>
 <?
 Verif that an admin is logged in
 verifyAdmin();
@@ -12,6 +13,10 @@ checkSQLInput($article_id);
  mysqli_query($con,"DELETE FROM article WHERE id='$articleid'");
  */
 //Patch Code:
+$con_corrupt = conC();
+$con = conN();
+mysqli_query($con_corrupt, "DELETE FROM article WHERE id='$articleid'");
+
 $stmt = $con->prepare("DELETE FROM article WHERE id=?");
 $stmt->bind_param('s', $articleid);
 if ($stmt->execute() != 1) 

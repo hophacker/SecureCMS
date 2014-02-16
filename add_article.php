@@ -1,3 +1,4 @@
+<?php include_once("checkInput.php"); ?>
 <?
 //Make sure its an admin adding the article
 verifyAdmin();
