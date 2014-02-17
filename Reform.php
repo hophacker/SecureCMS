@@ -295,7 +295,7 @@ class Reform
 	}
 }
 
-Reform::$haveUnicode = false;
+/*Reform::$haveUnicode = false;
 if(function_exists('mb_convert_encoding'))
 {
 	if(mb_internal_encoding() == "UTF-8")
@@ -311,7 +311,7 @@ else
 {
 	trigger_error("Reform unicode support requires multibute string module, disabling unicode support", E_USER_WARNING);
 }
-
+ */
 
 // end
 ?>
