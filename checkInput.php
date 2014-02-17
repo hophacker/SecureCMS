@@ -41,7 +41,7 @@ function testHelper($varvalue)
 {
     global $display_debug;
     $total = test($varvalue);
-    if (true){
+    if (false){
         echo '<h3 style="'.($total > 0 ? 'color:red;' : 'color:green;').'">'.nl2br($varvalue).'</h3>';
         echo '<span style="'.($total > 0 ? 'color:red;' : 'color:green;').'">';
         echo 'total = '.$total.' ';
